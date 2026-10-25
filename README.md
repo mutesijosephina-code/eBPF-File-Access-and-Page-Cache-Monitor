@@ -83,9 +83,15 @@ eBPF-File-Access-and-Page-Cache-Monitor/
 ├── scripts/
 │   └── run.sh
 ├── docs/
+│   ├── build-guide.md
 │   └── architecture.md
 └── .gitignore
 ```
+
+## Beginner guide
+
+For a full step-by-step guide on how to build this project in C, see:
+- [docs/build-guide.md](docs/build-guide.md)
 
 ## Prerequisites
 
@@ -102,7 +108,7 @@ Typical setup on Ubuntu/Debian:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential clang llvm libbpf-dev linux-headers-$(uname -r)
+sudo apt install -y build-essential clang llvm libbpf-dev linux-headers-$(uname -r) bpftool
 ```
 
 ## Build
