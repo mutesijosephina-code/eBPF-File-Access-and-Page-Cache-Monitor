@@ -1,165 +1,186 @@
-I’d recommend this as the best intermediate project:
+# eBPF File Access and Page Cache Monitor
 
-Project title:
-eBPF File Access and Page Cache Monitor
+A Linux observability project built with eBPF to monitor file access patterns, storage activity, and page cache behavior in real time.
 
-Why this is the best choice:
-- It fits the Linux Storage, Filesystem, MM & BPF Summit theme very well
-- It is advanced enough to look serious, but still feasible for an intermediate developer
-- It uses eBPF, which is highly relevant and impressive
-- It demonstrates practical Linux systems knowledge instead of only app-level work
-- It is doable in a few weeks with a clean scope
+## Overview
 
-Project proposal:
+This project helps developers, system administrators, and Linux performance engineers understand:
+- which processes are reading and writing files
+- which files are the hottest I/O targets
+- how I/O latency changes under system load
+- whether page cache behavior and memory pressure are contributing to slowdowns
 
-Title:
-eBPF File Access and Page Cache Monitor for Linux Storage and Memory Diagnostics
+The goal is to provide a practical, low-overhead tracing tool that connects application behavior with kernel storage and memory activity.
 
-Abstract:
-This project will build a lightweight Linux observability tool using eBPF to monitor file access patterns, storage activity, and page cache behavior in real time. The goal is to help developers and system administrators understand which processes are reading and writing files, how often the page cache is being used, and whether memory pressure or filesystem behavior is causing performance bottlenecks. The tool will provide real-time insights into file-level activity, I/O latency, and cache behavior, making it useful for debugging storage and memory issues in Linux systems.
+## Why this project matters
 
-Problem:
-Modern Linux workloads often suffer from poor storage performance without obvious root causes. In many systems, readers and writers are not the only contributors to latency—page cache behavior, writeback pressure, and filesystem access patterns can significantly affect throughput and responsiveness. Traditional tools often provide only coarse-grained statistics and do not show how specific files, processes, or memory states interact with storage behavior. There is a clear need for a tool that connects application activity to filesystem and memory behavior in real time.
+Linux systems often show poor storage performance without obvious causes. A process may appear to be slow, but the actual bottleneck may be related to:
+- page cache efficiency
+- writeback pressure
+- dirty-page accumulation
+- high file access churn
+- filesystem access patterns
 
-Objectives:
-- Monitor file opens, reads, writes, and close events using eBPF
-- Track which processes are generating the most I/O
-- Measure basic read/write latency and file activity patterns
-- Estimate page cache usage and identify cache hits/misses
-- Detect signs of writeback pressure and storage bottlenecks
-- Present results in a readable CLI or dashboard format
-- Build a useful system for developers, Linux users, and performance analysts
+This project focuses on making those relationships visible using eBPF.
 
-Scope:
-The project will focus on:
+## Project goals
+
+- Trace file open, read, write, and close activity using eBPF
+- Attribute I/O to specific processes and files
+- Measure file operation frequency and latency
+- Observe page cache and writeback-related indicators
+- Provide a real-time summary through a CLI or lightweight dashboard
+- Build a useful project aligned with Linux storage, filesystem, memory, and BPF work
+
+## Scope
+
+This project covers:
 - eBPF tracing of file operations
-- process-level I/O attribution
-- page cache and memory-related observations
-- user-space collection and summarization
-- simple visualization and reporting
+- process-level and file-level I/O attribution
+- page cache awareness and basic writeback indicators
+- user-space aggregation and reporting
 
-Non-goals:
-- Full kernel performance tuning
-- Advanced distributed tracing
-- Deep filesystem-specific optimization
-- Full support for every Linux filesystem or every architecture
+## Non-goals
 
-System design:
-1. eBPF programs
-- Attach to tracepoints or kprobes related to file operations
-- Capture:
-  - file opens
-  - reads
-  - writes
-  - fsync
-  - page cache access events
-  - writeback and dirty-page activity
-- Store aggregated metrics in BPF maps
+- Full filesystem implementation
+- Full enterprise observability platform integration
+- Distributed tracing across machines
+- Full support for every possible kernel variant
 
-2. Userspace collector
-- A Go or Python service will read BPF maps periodically
-- Aggregate metrics by:
-  - process
-  - file path
-  - file type
-  - filesystem
-  - read/write behavior
-- Compute summaries such as:
-  - top readers/writers
-  - hot files
-  - read vs write ratios
-  - I/O latency trends
-  - cache hit estimate
+## Architecture
 
-3. Output layer
-- Command-line interface for quick debugging
-- Optional dashboard using Grafana or a lightweight HTML/Flask interface
-- Report tables for:
-  - top processes by I/O
-  - most active files
-  - slowest file operations
-  - cache and writeback summary
+The project is split into two parts:
 
-Key features:
-- Process-centric I/O monitoring
-- File activity tracking
-- Storage and memory correlation
-- Top offenders list
-- Live reporting
-- Lightweight and low-overhead architecture
+### 1. eBPF programs
+The kernel-side code traces relevant file and storage events and stores summary information in BPF maps.
 
-Proposed implementation details:
-- Language: Go or Rust for userspace, C for eBPF programs
-- Libraries: libbpf, BCC, or eBPF CO-RE
-- Data source: tracepoints and kprobes
-- Storage of metrics: BPF maps plus periodic export to user space
-- Visualization: CLI output and optional Grafana dashboard
+### 2. Userspace collector
+The userspace side reads the aggregated BPF data, summarizes it, and prints clear output for debugging and performance analysis.
 
-Example output:
-- Process: python3
-- File: /var/log/app.log
-- Reads: 245/s
-- Writes: 80/s
-- Avg latency: 4.2 ms
-- Cache behavior: high page-cache usage
-- Writeback pressure: elevated
-- Recommendation: investigate file sync overhead and page cache pressure
+## Features
 
-Why this is relevant:
-This project addresses real Linux performance and observability problems. It connects application behavior to storage and memory efficiency, which is exactly the kind of systems work discussed in Linux storage and filesystem communities. It also showcases a practical understanding of eBPF, page cache behavior, and Linux internals—skills highly valued in modern Linux engineering.
+- Process-centric file monitoring
+- File path and operation tracking
+- Read/write throughput and latency summaries
+- Top offenders by process and file
+- Page cache and writeback visibility
+- Simple CLI based reporting
 
-Expected outcome:
-By the end of the project, the student will have built a working Linux observability tool that:
-- demonstrates eBPF tracing fundamentals
-- shows understanding of storage and page cache behavior
-- provides actionable performance insights
-- is valuable for system debugging and optimization
+## Example output
 
-Deliverables:
-- Source code for the eBPF monitoring tool
-- README with setup instructions
-- Sample workloads for testing
-- Result summary and screenshots
-- Short technical write-up explaining design choices and observations
+```text
+PID    COMM      FILE                                  OP       BYTES    LATENCY(ms)
+1012   nginx     /var/log/nginx/access.log            write    8192     2.8
+2234   python3   /tmp/cache.db                        read     65536    4.1
+3031   postgres  /var/lib/postgresql/data/app.db      write    131072   9.6
 
-Suggested timeline:
-Weeks 1–2:
-- Learn eBPF basics and set up a Linux test environment
-- Build a simple file open/read/write tracer
+Page cache: moderate
+Dirty pages: elevated
+Writeback pressure: active
+Top I/O hotspot: /var/lib/postgresql/data/app.db
+```
 
-Weeks 3–4:
-- Add process aggregation and file-level metrics
-- Add read/write latency tracking
+## Repository structure
 
-Weeks 5–6:
-- Add page cache and writeback observations
-- Build a user-space collector and summaries
+```text
+eBPF-File-Access-and-Page-Cache-Monitor/
+├── README.md
+├── Makefile
+├── LICENSE
+├── src/
+│   ├── common.h
+│   ├── file_monitor.bpf.c
+│   └── file_monitor.c
+├── include/
+│   └── file_monitor.h
+├── scripts/
+│   └── run.sh
+├── docs/
+│   └── architecture.md
+└── .gitignore
+```
 
-Weeks 7–8:
-- Improve output, test on real workloads, document results
+## Requirements
 
-Risk and mitigation:
-Risk:
-- eBPF hooks and kernel compatibility issues
-Mitigation:
-- Use tracepoints with stable interfaces and keep the scope focused on a modern Linux distribution
+A recent Linux system with:
+- kernel headers
+- clang and llvm
+- libbpf
+- bpftool
+- a modern kernel with BPF support
 
-Risk:
-- Too much complexity in page cache analysis
-Mitigation:
-- Start with basic file activity and cache estimation, then extend gradually
+Recommended:
+- Ubuntu 22.04+ or Fedora 38+
+- root privileges for loading BPF programs
 
-Risk:
-- Limited time for dashboards
-Mitigation:
-- Provide CLI output first and add visualization only if time allows
+## Build instructions
 
-Final recommendation:
-This is the ideal intermediate-level project because it is practical, visible, technically strong, and aligned with the goals of the Linux Storage, Filesystem, MM & BPF Summit. It shows that you understand the Linux kernel, filesystem behavior, memory management, and modern tracing tools.
+```bash
+make
+```
 
-If you want, I can now do one of the following:
-- write a shorter 1-page version of this proposal
-- turn this into a GitHub-ready README
-- give you the exact project architecture diagram in text form
-- help you choose the best stack: Go + libbpf or Rust + libbpf
-- write a more polished “conference-style” proposal for submission
+## Run
+
+```bash
+sudo ./scripts/run.sh
+```
+
+## Development idea
+
+This project is intentionally structured as a realistic intermediate Linux systems project. It demonstrates:
+- BPF tracing
+- kernel interaction
+- process and file attribution
+- storage and page cache diagnostics
+- systems engineering and observability work
+
+## Project status
+
+This repository currently contains the project foundation and eBPF skeleton for a file and page-cache monitor. It is designed to be extended with:
+- more detailed file metrics
+- latency aggregation
+- page cache heuristics
+- dashboard output
+- synthetic workloads for testing
+
+## License
+
+MIT
+
+## Suggested next steps
+
+1. Extend the BPF map with aggregated counters by file and process
+2. Add a user-space summary renderer
+3. Track I/O latency histograms
+4. Add basic page-cache and writeback heuristics
+5. Validate with realistic file I/O workloads
+
+---
+
+## GitHub-ready project proposal
+
+### Title
+`eBPF File Access and Page Cache Monitor for Linux Storage and Memory Diagnostics`
+
+### Abstract
+This project builds a lightweight Linux observability tool using eBPF to monitor file access patterns, storage activity, and page cache behavior in real time. The aim is to help developers and system administrators understand which processes are reading or writing files, how much I/O is occurring, and whether memory pressure or page cache behavior is affecting system performance.
+
+### Problem
+Modern Linux workloads often experience storage slowdowns without obvious root causes. In many systems, performance issues are influenced by a mix of I/O activity, filesystem access patterns, writeback pressure, and memory state. Traditional tools often show coarse-grained metrics but do not easily reveal the relationship between application behavior and kernel storage dynamics.
+
+### Objectives
+- Monitor file opens, reads, writes, and close events using eBPF
+- Track which processes generate the most file I/O
+- Measure latency and throughput per file and process
+- Estimate page cache behavior and identify signs of writeback pressure
+- Present results in readable output for debugging and optimization
+
+### Technical approach
+The project uses eBPF programs attached to relevant kernel hooks and tracepoints to collect file and I/O metadata. A userspace collector then reads the aggregated data from BPF maps and summarizes it for visualization and analysis.
+
+### Expected outcome
+By the end of the project, the repository will contain a working Linux tracing tool that demonstrates BPF-based monitoring, file I/O observation, and basic page-cache diagnostics.
+
+## Contributors
+
+This project can be used as a portfolio item for Linux systems, BPF, kernel, or observability work.
