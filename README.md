@@ -1,152 +1,81 @@
 # eBPF File Access and Page Cache Monitor
 
-A C-based Linux observability project built with eBPF and libbpf to monitor file access patterns, storage activity, and page cache behavior in real time.
+A C and libbpf learning project that observes successful VFS read/write operations and reports totals by process and operation. It is an initial working milestone toward broader Linux storage and memory observability.
 
-## Overview
+> **Scope note:** This first implementation measures bytes returned by `vfs_read`/`vfs_write`. That is not the same as physical disk I/O: reads may be served from the page cache, and writes may be buffered. Page-cache hit/miss and writeback-pressure metrics are future work, not currently reported by this version.
 
-This project is designed for Linux systems work and is intentionally kept in C so it stays approachable without needing Go or Rust. It focuses on showing how eBPF can be used to inspect file activity, process-level I/O behavior, and basic storage/memory diagnostics.
+## What it does
 
-The goal is to create a practical starter project that demonstrates:
-- file access tracing
-- process-level I/O attribution
-- basic page-cache awareness
-- kernel-side monitoring with userspace reporting
+- Attaches eBPF entry/return probes to `vfs_read` and `vfs_write`.
+- Captures the process ID/name, operation, successful byte count, and a best-effort file path.
+- Sends completed events through a BPF ring buffer.
+- Aggregates operation counts and bytes by process and operation in userspace.
+- Prints a summary every five seconds and once more when stopped.
 
-## Why this project is a good fit
+This is a system-wide monitor. File paths may contain sensitive information; only run it on systems and workloads you are authorized to observe.
 
-This is a strong intermediate-level Linux systems project because it combines:
-- eBPF tracing
-- kernel interaction
-- file system behavior
-- memory and cache awareness
-- performance observability
+## Requirements
 
-It is especially useful for portfolio work, internal Linux projects, or a learning project around storage and BPF.
+- Linux with BPF support and kernel BTF at `/sys/kernel/btf/vmlinux`.
+- A supported architecture: x86_64, arm64, arm, s390x, ppc64le, or riscv64.
+- `clang`, `llvm`, `bpftool`, `pkg-config`, a C compiler, and libbpf development headers.
+- Root privileges (or suitable BPF capabilities) to load and attach probes.
 
-## Project goal
-
-Build a lightweight Linux monitoring tool that lets you answer questions such as:
-- Which processes are reading or writing the most files?
-- Which files are being accessed the most?
-- Are reads and writes concentrated on a few hot files?
-- Is page cache behavior or writeback pressure likely affecting performance?
-
-## Architecture
-
-The project has two main parts:
-
-1. Kernel-side BPF programs
-   - attached to file-related kernel paths
-   - collect metadata about file operations
-   - store summaries in BPF maps
-
-2. Userspace collector
-   - reads BPF map data
-   - aggregates the results
-   - renders a readable terminal summary
-
-## Features
-
-- file open, read, and write tracing
-- process and file attribution
-- basic I/O byte accounting
-- simple top-offender reporting
-- lightweight Linux observability design
-
-## Example output
-
-```text
-PID    COMM      PATH                                    OP       BYTES
-1012   nginx     /var/log/nginx/access.log              write    8192
-2234   python3   /tmp/cache.db                          read     65536
-3031   postgres  /var/lib/postgresql/data/app.db        write    131072
-
-Page cache: moderate
-Dirty pages: elevated
-Writeback pressure: active
-Top I/O hotspot: /var/lib/postgresql/data/app.db
-```
-
-## Repository structure
-
-```text
-eBPF-File-Access-and-Page-Cache-Monitor/
-├── README.md
-├── Makefile
-├── LICENSE
-├── src/
-│   ├── common.h
-│   ├── file_monitor.bpf.c
-│   └── file_monitor.c
-├── include/
-│   └── file_monitor.h
-├── scripts/
-│   └── run.sh
-├── docs/
-│   ├── build-guide.md
-│   └── architecture.md
-└── .gitignore
-```
-
-## Beginner guide
-
-For a full step-by-step guide on how to build this project in C, see:
-- [docs/build-guide.md](docs/build-guide.md)
-
-## Prerequisites
-
-This project is written in C and uses libbpf. You will need:
-
-- Linux kernel with BPF support
-- clang and llvm
-- libbpf
-- bpftool
-- build-essential tools
-- root privileges to load the eBPF program
-
-Typical setup on Ubuntu/Debian:
+Ubuntu/Debian example:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential clang llvm libbpf-dev linux-headers-$(uname -r) bpftool
+sudo apt install -y build-essential clang llvm bpftool pkg-config libbpf-dev libelf-dev zlib1g-dev
 ```
 
-## Build
+If your running kernel does not provide `/sys/kernel/btf/vmlinux`, use a kernel with BTF enabled. The project generates `src/vmlinux.h` from that file when building.
+
+## Build and run
+
+From the repository root:
 
 ```bash
 make
+sudo ./src/file_monitor
 ```
 
-## Run
+Stop with Ctrl+C. A typical report looks like:
+
+```text
+PID      OP      COMMAND          OPERATIONS   BYTES      LAST FILE SEEN
+--------------------------------------------------------------------------------
+1234     read    cat              3            8192       /etc/hostname
+1234     write   dd               1            1048576    /tmp/sample
+```
+
+Generate test activity in another terminal:
 
 ```bash
-sudo ./scripts/run.sh
+cat /etc/hostname >/dev/null
+printf 'sample data\n' > /tmp/ebpf-monitor-test
+cat /tmp/ebpf-monitor-test >/dev/null
 ```
 
-## Project status
+Clean generated build files with `make clean`.
 
-This repository is a solid beginner-to-intermediate eBPF starter. It is intentionally designed to be clear and easy to extend without requiring Go or Rust.
+## How the code is organized
 
-Planned improvements:
-- add better aggregation of file and process totals
-- improve output formatting for terminal analysis
-- add page-cache and writeback heuristics
-- add more realistic testing workloads
-- add documentation for kernel compatibility notes
+- `src/file_monitor.bpf.c`: eBPF probes, pending-operation map, and ring buffer.
+- `src/file_monitor.c`: libbpf skeleton loader, ring-buffer reader, and report aggregation.
+- `src/common.h`: event structure shared between BPF and userspace.
+- `Makefile`: generates `vmlinux.h` and a libbpf skeleton, then builds the monitor.
+- `docs/build-guide.md`: beginner-friendly walkthrough and implementation notes.
 
-## Why this is relevant
+## Limitations and next steps
 
-This project directly matches topics in Linux systems, kernel, storage, filesystem, and BPF discussions:
-- file I/O monitoring
-- dirty page visibility
-- page cache behavior
-- process-level storage analysis
-- observability in modern Linux environments
+- `vfs_read`/`vfs_write` kprobe availability and signatures vary by kernel; attach may fail on kernels that hide or change these functions.
+- The file path is best-effort and may be truncated or unavailable.
+- This version summarizes by PID and operation, retaining the most recently observed path for each row.
+- Ring-buffer events can be lost under very high event rates.
+- It does not yet measure physical block-device I/O, page-cache hits/misses, dirty pages, or writeback pressure.
+
+Possible extensions: latency histograms, grouping by file identity, syscall tracepoints for broader coverage, and separately sourced memory/writeback statistics.
 
 ## License
 
-MIT
-
-## Quick project summary
-
-This project is meant to be a practical, portfolio-friendly Linux kernel tracing exercise using BPF, C, and libbpf. It is a good fit if you want to show real systems understanding without needing to learn an unfamiliar systems language like Go or Rust.
+See [LICENSE](LICENSE).

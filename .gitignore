@@ -1,2 +1,4 @@
 src/file_monitor.bpf.o
+src/file_monitor.skel.h
 src/file_monitor
+src/vmlinux.h

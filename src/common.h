@@ -2,11 +2,11 @@
 #define COMMON_H
 
 #define MAX_PATH_LEN 256
-#define MAX_EVENTS 1024
 
 #define OP_READ 1
 #define OP_WRITE 2
 
+/* Shared event layout: keep this definition identical for BPF and userspace. */
 struct file_event {
     __u32 pid;
     __u32 tid;
